@@ -1,8 +1,8 @@
 # 🐷 PiggyBank — On-Chain SOL Vault on Solana
 
-> A fully-functional on-chain piggy bank built with the **Anchor framework** on **Solana Devnet**.  
-> Any wallet can create its own piggy bank PDA, deposit SOL into it, and withdraw SOL back —  
-> all rules enforced by an immutable smart contract deployed on Solana.
+> A non-custodial SOL savings vault built on **Solana Devnet** using the **Anchor framework**.  
+> Each wallet gets its own on-chain PDA vault — deposit SOL in, withdraw it back out.  
+> Every rule is enforced by the smart contract itself; there's no admin, no backend, no trust required.
 
 <div align="center">
 
@@ -44,7 +44,7 @@
 ---
 
 ## 🎯 Project Overview
-This project implements a **Piggy Bank smart contract** on the Solana blockchain using the **Anchor framework**. It demonstrates core Solana programming model concepts: accounts, programs, instructions, PDAs (Program Derived Addresses), transactions, `invoke`, and direct lamport manipulation.
+This is a **Blockquest submission** — a Solana dApp that lets any wallet spin up its own personal SOL vault on-chain. Built with Anchor, it covers the full Solana programming model: account ownership, PDAs, CPI via `invoke`, and direct lamport mutation for program-owned accounts. A Next.js 14 frontend with Phantom wallet support makes it fully interactive from the browser.
 
 | Item                    | Value                                              |
 | ----------------------- | -------------------------------------------------- |
@@ -59,59 +59,56 @@ This project implements a **Piggy Bank smart contract** on the Solana blockchain
 ---
 
 ## 🏦 Real-World Analogy
-| Physical World           | Solana Blockchain                                                              |
-| ------------------------ | ------------------------------------------------------------------------------ |
-| A physical piggy bank    | A **PDA account** owned by the program                                         |
-| Who owns the bank        | Seeds `["piggybank", wallet_pubkey]` — only your wallet derives your bank      |
-| Dropping coins in        | `deposit` instruction — SOL moves from your wallet → PDA                       |
-| The coins inside         | **Lamports** stored inside the PDA                                             |
-| Proof it's your bank     | PDA is deterministically derived from your public key                          |
-| The bank's rules         | This on-chain Anchor program (immutable once deployed)                         |
-| Walking up to the bank   | TypeScript/JS client building and sending a transaction                        |
-| The teller processing it | Solana validators executing the instruction                                    |
-| Breaking the piggy bank  | `withdraw` instruction — SOL moves from PDA → your wallet                      |
+
+Think of it exactly like a ceramic piggy bank on your desk — but living permanently on the Solana blockchain:
+
+| The Physical World        | What It Maps To on Solana                                                       |
+| ------------------------- | ------------------------------------------------------------------------------- |
+| Your ceramic piggy bank   | A **PDA account** — a special address owned and controlled by this program      |
+| Your name on the bank     | Seeds `["piggybank", your_wallet_pubkey]` — your key uniquely derives your vault |
+| Dropping a coin in        | Calling `deposit` — SOL flows from your wallet into the PDA                    |
+| Coins sitting inside      | Lamports locked in the PDA's account balance                                    |
+| Knowing it's yours        | The PDA address is deterministic — no one else can derive the same address      |
+| The ceramic shell (rules) | The on-chain Anchor program — immutable after deployment                        |
+| You walking to the bank   | The Next.js frontend building and signing the transaction via Phantom           |
+| Bank staff processing it  | Solana validators running the program logic and updating state                  |
+| Smashing it open          | Calling `withdraw` — SOL flows from the PDA back into your wallet              |
 
 ---
 
 ## 🔑 Key Solana Concepts Used
 
 ### Accounts
-Every piece of data on Solana lives in an **account**. Accounts hold lamports (SOL), data, and have an owner program. In this project:
+Solana stores everything — code, balances, and application data — in **accounts**. Each account has an owner program that controls writes to it. Three accounts are in play here:
 
-- The **user wallet** is an account owned by the System Program
-- The **PDA** (`PiggyBank`) is an account owned by our Anchor program
-- The **System Program** is a special built-in account that handles SOL transfers
+- **User wallet** — owned by the System Program; holds the user's SOL
+- **PDA vault** (`PiggyBank`) — owned by our deployed Anchor program; holds the saved SOL
+- **System Program** — Solana's built-in program that handles SOL transfers between System-owned accounts
 
 ### Programs
-Programs are Solana's equivalent of smart contracts — stateless executable code stored on-chain. Our Anchor program contains three instructions (`initialize`, `deposit`, `withdraw`) and enforces all the rules.
+Unlike Ethereum, Solana programs are **stateless** — they hold no data themselves. All state lives in separate accounts that the program reads and writes. Our program (`lib.rs`) defines three callable instructions and validates every account constraint before touching any lamports.
 
 ### Instructions
-Instructions are the actions a program can perform. Each instruction specifies which accounts are involved and what data is passed. A **transaction** bundles one or more instructions and is submitted atomically.
+An instruction tells a program: "here are the accounts involved, here is the data, now execute." Multiple instructions can be packed into a single **transaction**, which is processed atomically — either everything succeeds or nothing changes.
 
 ### PDAs (Program Derived Addresses)
-A PDA is an account address derived from:
-
-- A set of **seeds** (byte strings)
-- The **program ID**
-- A **bump** (a nonce that ensures the address doesn't fall on the ed25519 curve — i.e., has no private key)
-
-In our program:
+A PDA is computed as:
 
 ```
 PDA = findProgramAddress(["piggybank", user_pubkey], program_id)
 ```
 
-Since a PDA has no private key, **only the program itself can sign for it** — which is why direct lamport manipulation is used for withdrawals.
+Three inputs go in — seeds, program ID, and a bump nonce. The result is an address that deliberately falls **off** the ed25519 curve, meaning it has no private key and cannot be signed for by any external wallet. Only our program, using `seeds` + `bump`, can authorize operations on it.
 
-### invoke vs Direct Lamport Manipulation
-|                 | `invoke`                                                   | Direct Lamport Manipulation                                              |
-| --------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------ |
-| **Used for**    | Calling System Program when a real keypair is the signer   | Moving SOL out of a program-owned PDA                                    |
-| **In our code** | `deposit` — user wallet signs                              | `withdraw` — PDA is program-owned, not System Program-owned              |
-| **Why**         | User wallet is System Program-owned                        | Our PDA is program-owned; System Program has no authority over it        |
+### Deposit vs Withdraw — Why Different Methods
+|                       | `deposit`                                               | `withdraw`                                                              |
+| --------------------- | ------------------------------------------------------- | ----------------------------------------------------------------------- |
+| **Who moves SOL**     | System Program, via CPI `invoke()`                      | Our program, via direct lamport mutation                                |
+| **Why this method**   | User wallet is System Program-owned — it can sign       | PDA is program-owned — System Program has zero authority over it        |
+| **Anchor helper used**| `system_instruction::transfer` + `invoke()`             | `try_borrow_mut_lamports()` on both accounts                            |
 
-### Bump Seed
-The bump is stored in the `PiggyBank` account so it doesn't need to be re-computed every time. This is a **gas optimization** — re-deriving the bump on-chain costs compute units.
+### Bump Seed Caching
+Computing the canonical bump on-chain requires iterating from 255 downward until a valid off-curve address is found. We store the bump in the `PiggyBank` struct at init time so subsequent instructions can pass it in directly — saving compute units on every call.
 
 ---
 
@@ -229,53 +226,53 @@ Blockquest-piggybank/
 ## 🔧 Program Instructions
 
 ### 1. `initialize`
-**Purpose:** Creates a new PDA piggy bank account for the calling user.
+**What it does:** Spins up a brand-new PDA vault account tied to the calling wallet. One wallet = one vault, forever.
 
-**How it works:**
-- Derives a PDA using seeds `["piggybank", user_pubkey]`
-- Allocates 41 bytes of on-chain space
-- Stores the caller's public key as `owner`
-- Stores the canonical `bump` seed for future verification
-- The user pays the rent-exempt deposit (a one-time SOL cost to keep the account alive)
+**Step by step:**
+1. Anchor derives the PDA from seeds `[b"piggybank", owner.key().as_ref()]` + our program ID
+2. The System Program allocates **41 bytes** of on-chain storage for the account
+3. The `owner` pubkey and canonical `bump` are written into the account data
+4. The calling wallet pays the **rent-exempt deposit** upfront (~0.00117624 SOL) — a one-time cost to keep the account alive indefinitely
 
-**Accounts required:**
+**Accounts consumed:**
 ```
-piggy_bank     — the PDA to be created (init)
-owner          — signer and payer
-system_program — required for account creation
+piggy_bank     — PDA being created (Anchor init constraint handles derivation)
+owner          — signer and lamport payer
+system_program — needed for the account creation CPI
 ```
 
-**Can only be called once per wallet** — Anchor's `init` constraint rejects any attempt to re-initialize an existing account.
+> Calling this a second time with the same wallet fails immediately — Anchor's `init` constraint detects the account already exists and rejects the transaction.
 
 ---
 
 ### 2. `deposit(amount: u64)`
-**Purpose:** Transfers `amount` lamports from the user's wallet into their piggy bank PDA.
+**What it does:** Moves SOL from the connected wallet into the PDA vault.
 
-**How it works:**
-- Validates `amount > 0`
-- Calls `system_instruction::transfer` via `invoke()` — a **Cross-Program Invocation (CPI)**
-- The user wallet (owned by System Program) is the sender, so `invoke` is used
-- The System Program verifies the user's signature and moves the lamports
+**Step by step:**
+1. Rejects zero-amount calls at the instruction level
+2. Issues a **CPI** to the System Program via `invoke()`, passing `system_instruction::transfer`
+3. The System Program confirms the user signed the transaction, then deducts `amount` lamports from the wallet and credits them to the PDA
+
+> `invoke()` is correct here because the user's wallet is System Program-owned — the user's signature is all the authorization needed.
 
 ---
 
 ### 3. `withdraw(amount: u64)`
-**Purpose:** Moves `amount` lamports from the PDA back to the user's wallet.
+**What it does:** Sends SOL from the PDA vault back to the owner's wallet.
 
-**How it works:**
-- Validates `amount > 0`
-- Checks there are enough withdrawable lamports (balance minus rent-exempt minimum)
-- Uses **direct lamport manipulation** because the PDA is owned by our program
+**Step by step:**
+1. Rejects zero-amount calls
+2. Checks that `pda_balance - amount >= rent_exempt_minimum` — refuses to drain the account below survival threshold
+3. Directly mutates the lamport fields on both accounts:
 
 ```rust
 **ctx.accounts.piggy_bank.to_account_info().try_borrow_mut_lamports()? -= amount;
 **ctx.accounts.owner.to_account_info().try_borrow_mut_lamports()? += amount;
 ```
 
-The runtime ensures the total lamports before and after the instruction are equal (conservation of lamports).
+> Why not `invoke_signed`? The System Program only moves lamports for accounts it owns. Our PDA is owned by **our program**, so the System Program has no authority over it. Direct lamport mutation is the correct Anchor pattern for program-owned account withdrawals. Solana's runtime enforces conservation — lamports subtracted must equal lamports added, or the transaction fails.
 
-**Rent-exemption guard:** The program ensures the PDA always keeps enough lamports to stay rent-exempt. Solana purges accounts with insufficient lamports, which would destroy the piggy bank.
+**Rent guard:** If a withdrawal would push the PDA below the rent-exempt minimum, the instruction aborts. This prevents Solana's garbage collector from reclaiming the account.
 
 ---
 
@@ -301,13 +298,13 @@ Offset  Size   Field
 Total   41 bytes
 ```
 
-The discriminator is a unique 8-byte hash of the account type name. Anchor uses it to verify you're reading the right type of account — prevents type confusion attacks.
+The discriminator is the first 8 bytes of every Anchor account — a SHA256 hash of `"account:PiggyBank"`. Anchor validates it on every instruction to ensure an account of type `PiggyBank` wasn't sneaked in where a different type was expected.
 
 ---
 
 ## 🛡️ Security & Ownership Enforcement (Bonus)
 
-The `Withdraw` instruction context includes an **explicit ownership constraint**:
+The `Withdraw` instruction enforces ownership at the **constraint level** — before a single line of instruction logic runs:
 
 ```rust
 #[derive(Accounts)]
@@ -319,28 +316,30 @@ pub struct Withdraw<'info> {
         has_one = owner   // ← rejects any signer that isn't the vault owner
     )]
     pub piggy_bank: Account<'info, PiggyBank>,
-    #[account(mut, signer)]
+    #[account(mut)]
     pub owner: Signer<'info>,
     pub system_program: Program<'info, System>,
 }
 ```
 
-This creates **two independent layers of protection**:
+Two independent guards fire before any lamports move:
 
-**Layer 1 — Seeds constraint (automatic):**  
-Anchor re-derives the PDA from `["piggybank", user.key()]` and checks it matches the provided `piggy_bank` address. If an attacker passes their own public key as `user`, the derived PDA won't match the victim's PDA → transaction rejected with `ConstraintSeeds` (error 2006).
+**Guard 1 — PDA re-derivation (`seeds` + `bump`):**  
+Anchor re-computes the expected PDA using the `owner` key passed into the transaction. If an attacker submits their own pubkey as `owner`, the re-derived PDA address won't match the victim's vault address — Anchor immediately throws `ConstraintSeeds` (error 2006) and halts.
 
-**Layer 2 — `has_one` owner constraint:**  
-The stored `owner` field inside the account data is checked against `user.key()`. If they don't match → transaction rejected.
+**Guard 2 — Stored owner field (`has_one`):**  
+`has_one = owner` reads the `owner` field stored **inside** the PDA's account data and compares it to the transaction signer. Even in a hypothetical scenario where seeds somehow matched, this check catches any mismatch between the stored owner and the signer.
 
-**The 4th test proves this works:**
+**Test 4 demonstrates the attack path:**
 ```
-Attacker generates a fresh keypair
-Attacker tries to withdraw from our PDA
-→ REJECTED: ConstraintSeeds (2006)
+1. A fresh random keypair is generated (the attacker)
+2. Attacker calls withdraw, passing our PDA as the vault
+3. Anchor re-derives PDA using attacker's key → wrong address
+4. → Transaction reverts: ConstraintSeeds (2006)
+5. Our SOL is untouched
 ```
 
-This is **defence in depth** — two separate, independent checks.
+The rejection happens at the **Solana consensus layer** — not the frontend. Even a raw crafted transaction bypassing the UI hits the same wall.
 
 ---
 
@@ -455,29 +454,17 @@ The `-t 1000000` flag sets a generous timeout since devnet confirmation can be s
 
 ## 🔍 Test Suite Explained
 
-### Test 1 — Initializes the piggy bank
-- Derives the PDA deterministically from `["piggybank", user_pubkey]`
-- Sends an `initialize` instruction
-- Fetches the on-chain account and **asserts** `account.owner === user.publicKey`
-- If the PDA already exists from a previous run, skips init and verifies the owner
+### Test 1 — Initialize
+Derives the expected PDA client-side, then sends the `initialize` instruction. After confirmation, fetches the on-chain `PiggyBank` account and asserts the stored `owner` matches the test wallet's public key. If the account already existed from a prior run, the test detects this and simply re-verifies the owner — no redundant re-init.
 
-### Test 2 — Deposits SOL
-- Records PDA balance before the deposit
-- Sends a `deposit` instruction with `0.1 SOL`
-- Waits for confirmation
-- Fetches PDA balance after and **asserts** it increased
+### Test 2 — Deposit
+Snapshots the PDA's lamport balance before the call, then deposits **0.1 SOL**. After the transaction confirms, re-reads the PDA balance and asserts it grew by exactly the deposited amount. This validates the CPI to the System Program is wired correctly.
 
-### Test 3 — Withdraws SOL
-- Records user wallet balance before withdrawal
-- Sends a `withdraw` instruction with `0.05 SOL`
-- Waits for confirmation
-- Fetches user balance after and **asserts** it increased (minus small tx fee tolerance)
+### Test 3 — Withdraw
+Snapshots the **user wallet** balance before the call, then withdraws **0.05 SOL** from the vault. After confirmation, asserts the wallet balance grew by approximately 0.05 SOL (within a small tolerance to account for the transaction fee). This validates the direct lamport manipulation path.
 
-### Test 4 (Bonus) — Rejects unauthorized withdrawal
-- Generates a fresh random keypair (the attacker)
-- The attacker tries to call `withdraw` on **our PDA** with their key as `owner`
-- **Asserts that the transaction throws** an error containing `ConstraintSeeds` (2006)
-- Proves the on-chain ownership enforcement works correctly
+### Test 4 (Bonus) — Unauthorized Withdrawal Attempt
+Generates a **brand-new random keypair** that has nothing to do with the vault owner. That keypair tries to call `withdraw` on our PDA, passing itself as `owner`. The test asserts the transaction **throws** and that the error includes `ConstraintSeeds` or `2006`. The vault balance is then confirmed unchanged — proving the on-chain guard held.
 
 ---
 
@@ -512,17 +499,17 @@ The `-t 1000000` flag sets a generous timeout since devnet confirmation can be s
 
 ## 🔬 Technical Deep-Dive
 
-### Why PDAs have no private key
-PDAs are derived by hashing the seeds + program ID. The hash is intentionally made to land **off** the ed25519 elliptic curve (by trying bump values from 255 down until it finds one that does). Since it's off the curve, it has no corresponding private key — only the program can authorize actions on it.
+### Why a PDA Can't Be Signed by Anyone
+Solana key pairs live on the **ed25519 elliptic curve** — every valid private key has a corresponding public key on that curve. PDAs are derived by hashing seeds + program ID and then bumping a nonce until the result lands **off the curve**. No private key exists for that point, so no external wallet can ever sign for it. Our program is the only entity that can authorize PDA operations — by passing the original seeds at instruction time.
 
-### Conservation of Lamports
-Solana's runtime enforces that the **total lamports across all accounts in a transaction cannot change** (except for fees paid to validators). This is why direct lamport manipulation works safely — if we subtract from PDA and add to user, the total stays the same. The runtime will reject any transaction where lamports appear or disappear.
+### Lamport Conservation
+Solana's runtime runs a hard check after every instruction: **sum of lamports in == sum of lamports out** (modulo fees). This is why `try_borrow_mut_lamports` works — we subtract from the PDA and add the exact same amount to the user. The runtime accepts it. Any mismatch, even by 1 lamport, causes the entire transaction to fail. This makes direct lamport mutation safe without needing the System Program.
 
-### Rent Exemption
-Accounts on Solana pay **rent** for the storage they consume unless they hold enough lamports to be "rent-exempt" (~0.00117624 SOL for 41 bytes). Rent-exempt accounts persist forever. Our withdraw guard prevents the PDA from dropping below this threshold, which would cause it to be garbage-collected by the runtime.
+### Rent Exemption & The Withdraw Floor
+Every Solana account pays storage rent proportional to its byte size — unless it holds enough lamports to be permanently "rent-exempt." For our 41-byte `PiggyBank` account, that floor is ~0.00117624 SOL. If an account drops below this level, validators will eventually reclaim it and all data is lost. Our `withdraw` instruction enforces `remaining_balance >= rent_exempt_min` before proceeding — the vault account survives even if fully "emptied" by the user.
 
-### Anchor's Account Discriminator
-When Anchor creates an account with `#[account]`, it prepends 8 bytes — a SHA256 hash of `"account:{TypeName}"`. On every instruction, Anchor verifies this discriminator matches the expected account type, preventing one account type from being substituted for another.
+### Anchor Discriminators & Type Safety
+Anchor writes an 8-byte discriminator at byte offset 0 of every `#[account]`-decorated struct. It's computed as `sha256("account:PiggyBank")[0..8]`. On every subsequent instruction, Anchor re-computes and validates this value before deserializing account data. This blocks attacks where an adversary substitutes a different account type — the discriminator check fires before any instruction logic.
 
 ### Version Stack Used
 ```
@@ -601,29 +588,30 @@ Transaction executed in slot 459490860:
 
 ## 🔍 Debugging Tips
 
-```bash
-# Watch real-time program logs while running tests
+**Useful commands while developing:**
+```powershell
+# Tail all logs for this specific program (filter out noise from other programs)
 solana logs FU2A8cDehHnfvu7kK23jrefPBuzdnz8ahQwQoZ8Cth12
 
-# Check a specific transaction on Solana Explorer
+# Or use the included script which auto-reconnects on timeout:
+powershell -ExecutionPolicy Bypass -File logs.ps1
+
+# Paste any tx signature into Explorer to see full instruction trace:
 # https://explorer.solana.com/tx/<SIGNATURE>?cluster=devnet
 
-# Check your wallet balance
+# Check wallet balance before running tests
 solana balance
-
-# Get more devnet SOL
-solana airdrop 2
-# or visit https://faucet.solana.com
 ```
 
-**Common issues:**
+**Common errors and fixes:**
 
-| Error | Cause | Fix |
-|-------|-------|-----|
-| `Blockhash not found` | Stale blockhash | Add `skipPreflight: true` to RPC options |
-| `Custom: 0` on initialize | PDA already exists | Safe to ignore — tests handle this |
-| `airdrop failed: Internal error` | Devnet rate limit | Use web faucet instead |
-| `ConstraintSeeds (2006)` on withdraw | Wrong signer | Ensure connected wallet matches vault owner |
+| What you see | What it means | How to fix it |
+|---|---|---|
+| `Blockhash not found` | Blockhash expired before tx sent | Retry — or set `skipPreflight: true` |
+| `Custom program error: 0x0` on initialize | PDA already exists from a previous run | This is fine — the test auto-skips and re-verifies |
+| `airdrop failed` | Devnet faucet rate-limited your IP | Use [faucet.solana.com](https://faucet.solana.com) in browser |
+| `ConstraintSeeds (2006)` | The signer's key doesn't derive to the vault address | Make sure you're connected with the **same wallet** that initialized the vault |
+| Frontend shows stale balance | RPC cache lag | Wait 2-3 seconds and refresh — devnet can lag |
 
 ---
 
