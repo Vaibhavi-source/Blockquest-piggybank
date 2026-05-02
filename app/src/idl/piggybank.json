@@ -1,0 +1,221 @@
+{
+  "address": "FU2A8cDehHnfvu7kK23jrefPBuzdnz8ahQwQoZ8Cth12",
+  "metadata": {
+    "name": "piggybank",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Piggy Bank Solana dApp"
+  },
+  "instructions": [
+    {
+      "name": "deposit",
+      "docs": [
+        "Moves SOL from the user's wallet into their PDA."
+      ],
+      "discriminator": [
+        242,
+        35,
+        198,
+        137,
+        82,
+        225,
+        242,
+        182
+      ],
+      "accounts": [
+        {
+          "name": "piggy_bank",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  105,
+                  103,
+                  103,
+                  121,
+                  98,
+                  97,
+                  110,
+                  107
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "user"
+              }
+            ]
+          }
+        },
+        {
+          "name": "user",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "initialize",
+      "docs": [
+        "Creates the user's personal PDA piggy bank account."
+      ],
+      "discriminator": [
+        175,
+        175,
+        109,
+        31,
+        13,
+        152,
+        155,
+        237
+      ],
+      "accounts": [
+        {
+          "name": "piggy_bank",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  105,
+                  103,
+                  103,
+                  121,
+                  98,
+                  97,
+                  110,
+                  107
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "user"
+              }
+            ]
+          }
+        },
+        {
+          "name": "user",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "withdraw",
+      "docs": [
+        "Moves SOL from the PDA back to the owner.",
+        "Uses invoke_signed because the PDA has no private key.",
+        "has_one = owner on Withdraw ensures only the real owner can call this."
+      ],
+      "discriminator": [
+        183,
+        18,
+        70,
+        156,
+        148,
+        109,
+        161,
+        34
+      ],
+      "accounts": [
+        {
+          "name": "piggy_bank",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  105,
+                  103,
+                  103,
+                  121,
+                  98,
+                  97,
+                  110,
+                  107
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "piggy_bank"
+          ]
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "PiggyBank",
+      "discriminator": [
+        167,
+        112,
+        229,
+        150,
+        179,
+        144,
+        232,
+        243
+      ]
+    }
+  ],
+  "types": [
+    {
+      "name": "PiggyBank",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    }
+  ]
+}
