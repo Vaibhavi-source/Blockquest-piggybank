@@ -52,7 +52,7 @@ This is a **Blockquest submission** — a Solana dApp that lets any wallet spin 
 | **Program ID**          | `FU2A8cDehHnfvu7kK23jrefPBuzdnz8ahQwQoZ8Cth12`    |
 | **Framework**           | Anchor 1.0.1                                       |
 | **Language (on-chain)** | Rust                                               |
-| **Language (tests)**    | JavaScript                                         |
+| **Language (tests)**    | TypeScript                                         |
 | **Test runner**         | Mocha                                              |
 | **Frontend**            | Next.js 14 + @coral-xyz/anchor 0.32.1              |
 
