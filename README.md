@@ -18,52 +18,36 @@
 
 ## 📸 Screenshots
 
-### 1. Landing Page — Connect Wallet
-> Hero with feature cards explaining what PDA vaults are and how they differ from regular wallets
+### 1. Landing Page
+Connect your Phantom wallet to get started. The hero explains exactly what a PDA vault is and why it's more secure than a regular wallet.
 
 ![Landing Page](screenshots/01_landing.png)
 
 ---
 
-### 2. Initialize Vault
-> After connecting Phantom (Devnet), one-time vault creation derives a PDA from your wallet address
+### 2. Wallet Connection
+Click **Select Wallet** — Phantom is auto-detected. One click and you're in.
 
-![Initialize Vault](screenshots/02_initialize.png)
+![Wallet Connect](screenshots/02_wallet_connect.png)
 
 ---
 
-### 3. Dashboard — Active Vault
-> Full dashboard showing vault balance, deposit/withdraw panel, transaction history, and security demo
+### 3. Live Dashboard — Active Vault
+Once connected and initialized, the dashboard shows your vault balance, deposit/withdraw panel, and full transaction history.
+
+> *Screenshot: Dashboard showing `0.0012 SOL` balance, 4 transactions, deposit tab active*
 
 ![Dashboard](screenshots/03_dashboard.png)
 
 ---
 
-### 4. Terminal Activity Log — Live Checkmarks
-> Real-time log panel showing each step with ✅ checkmarks, timestamps, and clickable explorer links
+### 4. Solana Live Logs — Terminal Output
+A dedicated PowerShell window streams every on-chain instruction in real time using `solana logs`. Here you can see `Initialize`, `Deposit`, and `Withdraw` instructions firing with their compute units and transaction signatures.
 
-![Terminal Log](screenshots/04_terminal_log.png)
+> *Auto-reconnects on WebSocket timeout — no manual action needed.*
 
----
-
-### 5. Security Demo — Unauthorized Withdrawal Blocked
-> Generating a random rogue wallet and attempting to steal SOL — rejected instantly by the on-chain constraint
-
-![Security Demo](screenshots/05_security_demo.png)
-
----
-
-### 6. Solana Live Logs — Terminal Output
-> Running `solana logs <program-id>` in a separate terminal streams every on-chain transaction in real time
-
-![Solana Logs](screenshots/06_solana_logs.png)
-
----
-
-### 7. All 4 Tests Passing
-> Mocha test suite showing Initialize, Deposit, Withdraw, and Unauthorized Withdrawal tests
-
-![Tests Passing](screenshots/07_tests.png)
+![Live Logs 1](screenshots/04_terminal_logs_1.png)
+![Live Logs 2](screenshots/05_terminal_logs_2.png)
 
 ---
 
@@ -123,6 +107,7 @@ pub struct PiggyBank {
     pub bump:  u8,      //  1 byte
 }
 // Total: 8 (discriminator) + 32 + 1 = 41 bytes
+// Rent-exempt minimum: 0.00117624 SOL
 ```
 
 ### Access Control
@@ -171,25 +156,32 @@ npx mocha -t 1000000 tests/piggybank.js
 
 ## 📡 Live Terminal Logs
 
-To see on-chain transactions in your terminal as you use the dApp:
+The `logs.ps1` script streams every on-chain instruction as it executes:
 
 ```bash
-# In a separate PowerShell window:
-solana logs FU2A8cDehHnfvu7kK23jrefPBuzdnz8ahQwQoZ8Cth12
+# Run this in a PowerShell window:
+powershell -ExecutionPolicy Bypass -File logs.ps1
+```
 
-# Output when you deposit:
-# Transaction executed in slot 380921432
-#   Program FU2A8c... invoke [1]
-#   Program log: Instruction: Deposit
-#   Program 11111... invoke [2]     ← System transfer
-#   Program 11111... success
-#   Program FU2A8c... success
+**What you'll see:**
 
-# Output when rogue tries to withdraw:
-#   Program FU2A8c... invoke [1]
-#   Program log: Instruction: Withdraw
-#   Program log: AnchorError: ConstraintSeeds (2006)  ← BLOCKED
-#   Program FU2A8c... failed
+```
+[09:12:34] Streaming...
+Transaction executed in slot 459490740:
+  Signature: 2cpD2HazbLE8acMspxXaAv2SHhVePsPLwR7oUb1r85S6au5yjxjnzXp6BZowZVYK1hKsLSxUnmNqRaMYhbcVYhZk
+  Status: Ok
+  Log Messages:
+    Program FU2A8cDehHnfvu7kK23jrefPBuzdnz8ahQwQoZ8Cth12 invoke [1]
+    Program log: Instruction: Initialize
+    Program 11111111111111111111111111111111 invoke [2]
+    Program 11111111111111111111111111111111 success
+    Program FU2A8cDehHnfvu7kK23jrefPBuzdnz8ahQwQoZ8Cth12 consumed 9500 of 199700 compute units
+    Program FU2A8cDehHnfvu7kK23jrefPBuzdnz8ahQwQoZ8Cth12 success
+
+Transaction executed in slot 459490860:
+    Program log: Instruction: Deposit
+    ...consumed 5491 of 199700 compute units
+    Program FU2A8cDehHnfvu7kK23jrefPBuzdnz8ahQwQoZ8Cth12 success
 ```
 
 ---
@@ -199,11 +191,10 @@ solana logs FU2A8cDehHnfvu7kK23jrefPBuzdnz8ahQwQoZ8Cth12
 ### Prerequisites
 - [Solana CLI](https://docs.solana.com/cli/install-solana-cli-tools) (v1.18+)
 - [Anchor via AVM](https://www.anchor-lang.com/docs/installation) (v1.0.1)
-- Node.js 18+ and Yarn
+- Node.js 18+ and npm
 
 ### 1. Install dependencies
 ```bash
-yarn install
 cd app && npm install
 ```
 
@@ -234,9 +225,9 @@ npm run dev
 # → http://localhost:3000
 ```
 
-### 6. Watch live logs (optional, separate terminal)
+### 6. Watch live logs (separate PowerShell window)
 ```bash
-solana logs FU2A8cDehHnfvu7kK23jrefPBuzdnz8ahQwQoZ8Cth12
+powershell -ExecutionPolicy Bypass -File logs.ps1
 ```
 
 ---
@@ -246,7 +237,7 @@ solana logs FU2A8cDehHnfvu7kK23jrefPBuzdnz8ahQwQoZ8Cth12
 1. **Connect Account 1** (your Phantom wallet) → Initialize + Deposit 0.1 SOL
 2. **Switch to Account 2** in Phantom → Try to withdraw from Account 1's vault
 3. Phantom shows: *"This transaction reverted during simulation"*
-4. **Or**: Click "Try Unauthorized Withdrawal" in the dashboard — a random keypair is generated on-the-fly and the on-chain program rejects it with `ConstraintSeeds (2006)`
+4. **Or**: Click **"Try Unauthorized Withdrawal"** in the dashboard — a random keypair is generated on-the-fly and the on-chain program rejects it with `ConstraintSeeds (2006)`
 
 > 💡 The rejection happens at the **Solana consensus layer** — not the frontend. Even if you bypass the UI and craft a raw transaction, the program will reject it.
 
@@ -258,18 +249,20 @@ solana logs FU2A8cDehHnfvu7kK23jrefPBuzdnz8ahQwQoZ8Cth12
 Blockquest-piggybank/
 ├── programs/piggybank/src/lib.rs   ← Anchor smart contract
 ├── tests/piggybank.js              ← Mocha test suite (4 tests)
+├── logs.ps1                        ← Live log streaming script
 ├── target/idl/piggybank.json       ← Generated IDL
 ├── Anchor.toml                     ← Anchor config (devnet)
+├── screenshots/                    ← App screenshots for README
 └── app/                            ← Next.js 14 frontend
     └── src/
-        ├── app/page.tsx            ← Main page (3 states)
+        ├── app/page.tsx            ← Main page (3 states: hero / init / dashboard)
         ├── components/
-        │   ├── TerminalLog.tsx     ← Live activity terminal
+        │   ├── TerminalLog.tsx     ← Live activity log panel
         │   ├── DepositWithdrawPanel.tsx
         │   ├── TxFeed.tsx
         │   ├── VaultVisual.tsx
         │   └── Navbar.tsx
-        ├── hooks/usePiggyBank.ts   ← Anchor client + log tracking
+        ├── hooks/usePiggyBank.ts   ← Anchor client + state + log tracking
         ├── context/WalletContextProvider.tsx
         └── idl/piggybank.json      ← IDL copy for frontend
 ```
@@ -284,6 +277,7 @@ Blockquest-piggybank/
 | Cluster | Solana Devnet |
 | PDA Seeds | `["piggybank", owner_pubkey]` |
 | Account Size | 41 bytes (8 discriminator + 32 pubkey + 1 bump) |
+| Rent-exempt Min | 0.00117624 SOL |
 | Withdraw Method | Direct lamport manipulation (`try_borrow_mut_lamports`) |
 | Access Control | `has_one = owner` + `ConstraintSeeds` |
 | Error on Unauth | 2006 (ConstraintSeeds) |
